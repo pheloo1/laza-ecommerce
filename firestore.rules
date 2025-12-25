@@ -1,0 +1,80 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user owns the document
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    // Helper function to validate user data
+    function isValidUserData() {
+      return request.resource.data.keys().hasAll(['email', 'createdAt'])
+        && request.resource.data.email is string
+        && request.resource.data.createdAt is timestamp;
+    }
+    
+    // Helper function to validate cart item data
+    function isValidCartItem() {
+      return request.resource.data.keys().hasAll(['title', 'price', 'image', 'quantity', 'addedAt'])
+        && request.resource.data.title is string
+        && request.resource.data.price is number
+        && request.resource.data.image is string
+        && request.resource.data.quantity is int
+        && request.resource.data.quantity > 0
+        && request.resource.data.addedAt is timestamp;
+    }
+    
+    // Helper function to validate favorite item data
+    function isValidFavoriteItem() {
+      return request.resource.data.keys().hasAll(['title', 'price', 'image', 'addedAt'])
+        && request.resource.data.title is string
+        && request.resource.data.price is number
+        && request.resource.data.image is string
+        && request.resource.data.addedAt is timestamp;
+    }
+    
+    // Users collection
+    // Each user can only read and write their own user document
+    match /users/{userId} {
+      allow read: if isAuthenticated() && isOwner(userId);
+      allow create: if isAuthenticated() && isOwner(userId) && isValidUserData();
+      allow update: if isAuthenticated() && isOwner(userId);
+      allow delete: if isAuthenticated() && isOwner(userId);
+    }
+    
+    // Carts collection
+    // Each user can only access their own cart items
+    match /carts/{userId}/items/{itemId} {
+      allow read: if isAuthenticated() && isOwner(userId);
+      allow create: if isAuthenticated() && isOwner(userId) && isValidCartItem();
+      allow update: if isAuthenticated() && isOwner(userId) && isValidCartItem();
+      allow delete: if isAuthenticated() && isOwner(userId);
+      
+      // Allow listing all cart items for the user
+      allow list: if isAuthenticated() && isOwner(userId);
+    }
+    
+    // Favorites collection
+    // Each user can only access their own favorite items
+    match /favorites/{userId}/items/{itemId} {
+      allow read: if isAuthenticated() && isOwner(userId);
+      allow create: if isAuthenticated() && isOwner(userId) && isValidFavoriteItem();
+      allow update: if isAuthenticated() && isOwner(userId) && isValidFavoriteItem();
+      allow delete: if isAuthenticated() && isOwner(userId);
+      
+      // Allow listing all favorite items for the user
+      allow list: if isAuthenticated() && isOwner(userId);
+    }
+    
+    // Deny all other access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
